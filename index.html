@@ -40,7 +40,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect, useRef } = React;
 
         // --- SVG 圖示組件 ---
         const IconDroplet = ({ size = 24, color = "currentColor" }) => (
@@ -68,21 +68,24 @@
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" /><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" /><path d="M2 21h20" /><path d="M7 8v3" /><path d="M12 8v3" /><path d="M17 8v3" /><path d="M7 4h.01" /><path d="M12 4h.01" /><path d="M17 4h.01" /></svg>
         );
 
-        // --- 子視圖組件 (為了優化渲染效能，將 state 拆分) ---
+        // --- 子視圖組件 ---
 
         const HomeView = ({ activeCat, cats, onSwitchCat, onNavigate, calculateAge, dailyTarget, progress }) => (
             <div className="flex flex-col gap-6 animate-in">
                 <div className="flex justify-between items-center px-2">
-                    <div>
+                    <div className="max-w-[150px]">
                         <p className="text-gray-400 text-sm font-bold">Hello, {activeCat.name}!</p>
-                        <h1 className="text-2xl font-black text-gray-800">貓咪飲水監控</h1>
+                        <h1 className="text-2xl font-black text-gray-800">貓咪飲水</h1>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center overflow-x-auto pb-2 no-scrollbar">
                         {cats.map((cat, idx) => (
-                            <button key={cat.id} onClick={() => onSwitchCat(idx)} className={`w-12 h-12 rounded-full overflow-hidden transition-all ${activeCat.id === cat.id ? 'ring-4 ring-blue-400 scale-110 shadow-lg' : 'opacity-40 grayscale'}`}>
+                            <button key={cat.id} onClick={() => onSwitchCat(idx)} className={`w-12 h-12 flex-shrink-0 rounded-full overflow-hidden transition-all ${activeCat.id === cat.id ? 'ring-4 ring-blue-400 scale-110 shadow-lg' : 'opacity-40 grayscale'}`}>
                                 {cat.profilePic ? <img src={cat.profilePic} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white flex items-center justify-center text-2xl">{cat.icon}</div>}
                             </button>
                         ))}
+                        <button onClick={() => onNavigate('add_cat')} className="w-12 h-12 flex-shrink-0 rounded-full bg-white soft-shadow flex items-center justify-center text-blue-500 hover:scale-110 active:scale-95 transition-all">
+                            <IconPlus size={24} />
+                        </button>
                     </div>
                 </div>
 
@@ -96,7 +99,7 @@
                         <div className="mt-4 flex flex-col gap-1 bg-white/30 backdrop-blur-sm p-3 rounded-2xl w-fit">
                             <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">體重:</span> {activeCat.weight} kg</p>
                             <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">年齡:</span> {calculateAge(activeCat.birthday)}</p>
-                            <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">每日需求:</span> {dailyTarget} ml</p>
+                            <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">需求:</span> {dailyTarget} ml</p>
                         </div>
                     </div>
                     <div className="absolute bottom-0 left-0 w-full bg-white/40 transition-all duration-1000 ease-out" style={{ height: `${progress}%` }}>
@@ -158,77 +161,90 @@
             const [weight, setWeight] = useState('');
             const [percent, setPercent] = useState('80');
 
-            const handleCalc = () => {
-                const w = parseFloat(weight);
-                const p = parseFloat(percent) / 100;
-                if (!isNaN(w) && !isNaN(p)) {
-                    onAdd(Math.round(w * p));
+            return (
+                <div className="flex flex-col h-full animate-in">
+                    <div className="flex items-center justify-between mb-8">
+                        <button onClick={onBack} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
+                        <h2 className="text-xl font-black text-gray-700">濕食換算</h2>
+                        <div className="w-12"></div>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                        <div className="bg-orange-50 p-6 rounded-[35px] border border-orange-100">
+                            <p className="text-xs text-orange-400 font-bold mb-1">計算公式</p>
+                            <p className="text-sm text-orange-700 leading-relaxed font-bold">水分 (ml) = 淨重 (g) × 水分%</p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">罐頭品牌</label>
+                                <input type="text" defaultValue={brand} onBlur={e => setBrand(e.target.value)} placeholder="例如：汪喵、凱特..." className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">淨重 (g)</label>
+                                    <input type="number" defaultValue={weight} onChange={e => setWeight(e.target.value)} placeholder="80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">水分 (%)</label>
+                                    <input type="number" defaultValue={percent} onChange={e => setPercent(e.target.value)} placeholder="80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold text-blue-500" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white p-8 rounded-[35px] soft-shadow text-center mt-4">
+                            <p className="text-xs font-bold text-gray-400 mb-1">預計增加</p>
+                            <h4 className="text-4xl font-black text-orange-500">
+                                {weight && percent ? Math.round(parseFloat(weight) * (parseFloat(percent)/100)) : 0} <span className="text-lg font-bold text-gray-400">ml</span>
+                            </h4>
+                        </div>
+                    </div>
+                    <button onClick={() => {
+                        const w = parseFloat(weight);
+                        const p = parseFloat(percent)/100;
+                        if(!isNaN(w) && !isNaN(p)) onAdd(Math.round(w*p));
+                    }} className="mt-12 py-6 bg-orange-500 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all">加入紀錄</button>
+                </div>
+            );
+        };
+
+        // --- 新增貓咪 / 編輯資料 共用元件 ---
+        const ProfileEditor = ({ title, initialData, onBack, onSave, isNew = false }) => {
+            const [localName, setLocalName] = useState(initialData.name || "");
+            const [localBirthday, setLocalBirthday] = useState(initialData.birthday || new Date().toISOString().split('T')[0]);
+            const [localWeight, setLocalWeight] = useState(initialData.weight || 4);
+            const [localPic, setLocalPic] = useState(initialData.profilePic || null);
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setLocalPic(reader.result);
+                    reader.readAsDataURL(file);
                 }
+            };
+
+            const handleSave = () => {
+                onSave({
+                    name: localName,
+                    birthday: localBirthday,
+                    weight: parseFloat(localWeight) || 0,
+                    profilePic: localPic
+                });
             };
 
             return (
                 <div className="flex flex-col h-full animate-in">
                     <div className="flex items-center justify-between mb-8">
                         <button onClick={onBack} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
-                        <h2 className="text-xl font-black text-gray-700">濕食水分換算</h2>
-                        <div className="w-12"></div>
-                    </div>
-                    <div className="flex flex-col gap-6">
-                        <div className="bg-orange-50 p-6 rounded-[35px] border border-orange-100">
-                            <p className="text-xs text-orange-400 font-bold mb-1">計算公式</p>
-                            <p className="text-sm text-orange-700 leading-relaxed font-bold">獲得水分 (ml) = 罐頭淨重 (g) × 水分%</p>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">罐頭品牌</label>
-                                <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="例如：汪喵、凱特..." className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">淨重 (g)</label>
-                                    <input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder="80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">水分百分比 (%)</label>
-                                    <input type="number" value={percent} onChange={e => setPercent(e.target.value)} placeholder="80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold text-blue-500" />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white p-8 rounded-[35px] soft-shadow text-center mt-4">
-                            <p className="text-xs font-bold text-gray-400 mb-1">本次預計增加</p>
-                            <h4 className="text-4xl font-black text-orange-500">
-                                {weight && percent ? Math.round(parseFloat(weight) * (parseFloat(percent)/100)) : 0} <span className="text-lg font-bold text-gray-400">ml</span>
-                            </h4>
-                        </div>
-                    </div>
-                    <button onClick={handleCalc} className="mt-12 py-6 bg-orange-500 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all">加入今天飲水量</button>
-                </div>
-            );
-        };
-
-        const ProfileView = ({ cat, onBack, onSave, onImageUpload }) => {
-            // 使用本地狀態，確保注音輸入時不會被全域渲染中斷
-            const [localName, setLocalName] = useState(cat.name);
-            const [localBirthday, setLocalBirthday] = useState(cat.birthday);
-            const [localWeight, setLocalWeight] = useState(cat.weight);
-
-            const dailyGoal = Math.round(localWeight * 55);
-
-            return (
-                <div className="flex flex-col h-full animate-in">
-                    <div className="flex items-center justify-between mb-8">
-                        <button onClick={onBack} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
-                        <h2 className="text-xl font-black text-gray-700">貓咪基本資料</h2>
+                        <h2 className="text-xl font-black text-gray-700">{title}</h2>
                         <div className="w-12"></div>
                     </div>
                     <div className="flex flex-col items-center gap-8">
                         <div className="relative">
                             <div className="w-40 h-40 rounded-[45px] bg-white soft-shadow overflow-hidden flex items-center justify-center border-8 border-white">
-                                {cat.profilePic ? <img src={cat.profilePic} className="w-full h-full object-cover" /> : <div className="text-7xl">{cat.icon}</div>}
+                                {localPic ? <img src={localPic} className="w-full h-full object-cover" /> : <div className="text-7xl">{initialData.icon || '🐱'}</div>}
                             </div>
                             <label className="absolute -bottom-2 -right-2 p-4 bg-blue-500 text-white rounded-[20px] shadow-xl cursor-pointer hover:scale-110 transition-transform">
                                 <IconCamera size={20} />
-                                <input type="file" accept="image/*" className="hidden" onChange={onImageUpload} />
+                                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                             </label>
                         </div>
                         <div className="w-full space-y-4">
@@ -236,19 +252,20 @@
                                 <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">貓咪姓名</label>
                                 <input 
                                     type="text" 
-                                    value={localName} 
-                                    onChange={e => setLocalName(e.target.value)} 
+                                    defaultValue={localName}
+                                    onChange={(e) => setLocalName(e.target.value)}
+                                    placeholder="輸入姓名..."
                                     className="w-full bg-transparent border-b border-gray-100 py-1 text-xl font-black text-gray-800" 
                                 />
                             </div>
                             <div className="bg-white p-5 rounded-[30px] soft-shadow">
-                                <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">出生日期 (西元)</label>
+                                <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">出生日期</label>
                                 <div className="flex items-center gap-3">
                                     <IconCake size={18} color="#f472b6" />
                                     <input 
                                         type="date" 
                                         value={localBirthday} 
-                                        onChange={e => setLocalBirthday(e.target.value)} 
+                                        onChange={(e) => setLocalBirthday(e.target.value)} 
                                         className="flex-1 bg-transparent border-b border-gray-100 py-1 text-xl font-black text-pink-500" 
                                     />
                                 </div>
@@ -259,22 +276,23 @@
                                     <input 
                                         type="number" 
                                         step="0.1" 
-                                        value={localWeight} 
-                                        onChange={e => setLocalWeight(e.target.value)} 
+                                        defaultValue={localWeight}
+                                        onChange={(e) => setLocalWeight(e.target.value)}
                                         className="flex-1 bg-transparent border-b border-gray-100 py-1 text-xl font-black text-blue-500" 
                                     />
                                     <span className="font-bold text-gray-400">公斤</span>
                                 </div>
-                                <p className="text-[10px] text-blue-400 mt-2 font-bold italic">預計每日飲水目標: {dailyGoal} ml</p>
                             </div>
                         </div>
                     </div>
-                    <button onClick={() => onSave({ name: localName, birthday: localBirthday, weight: parseFloat(localWeight) || 0 })} className="mt-12 py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-xl active:scale-95 transition-all">保存設定</button>
+                    <button onClick={handleSave} className="mt-12 py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-xl active:scale-95 transition-all">
+                        {isNew ? '確認新增' : '保存設定'}
+                    </button>
                 </div>
             );
         };
 
-        const StatsView = ({ activeCat, onBack, isSyncing, syncStatus, onSync }) => (
+        const StatsView = ({ onBack, isSyncing, syncStatus, onSync }) => (
             <div className="flex flex-col h-full animate-in">
                 <div className="flex items-center justify-between mb-8">
                     <button onClick={onBack} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
@@ -284,22 +302,22 @@
                 <div className="bg-white p-10 rounded-[45px] soft-shadow flex flex-col items-center text-center">
                     <div className="w-24 h-24 bg-blue-50 rounded-[35px] flex items-center justify-center text-blue-500 mb-8 soft-inset shadow-sm"><IconSync size={40} /></div>
                     <h3 className="text-2xl font-black text-gray-800">雲端備份</h3>
-                    <p className="text-sm text-gray-400 mt-4 font-bold px-4">同步數據至您的 Google 試算表。</p>
+                    <p className="text-sm text-gray-400 mt-4 font-bold px-4">將數據同步至 Google 試算表。</p>
                     <button onClick={onSync} disabled={isSyncing} className={`mt-12 w-full py-6 rounded-[28px] font-black transition-all flex items-center justify-center gap-3 ${syncStatus === 'success' ? 'bg-green-500 text-white shadow-lg' : isSyncing ? 'bg-gray-100 text-gray-400' : 'bg-blue-500 text-white shadow-xl active:scale-95'}`}>
-                        {isSyncing ? "同步中..." : "立即同步至雲端"}
+                        {isSyncing ? "同步中..." : "立即同步"}
                     </button>
                 </div>
             </div>
         );
 
-        // --- 主應用入口 ---
+        // --- 主入口 ---
         const App = () => {
             const [activeView, setActiveView] = useState('home'); 
             const [cats, setCats] = useState(() => {
                 const saved = localStorage.getItem('meow_h2o_cats_v3');
+                const defaultDate = new Date().toISOString().split('T')[0];
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, name: 'Mallowie', weight: 4, birthday: '2020-01-01', consumed: 0, color: 'bg-blue-100', icon: '🐱', profilePic: null },
-                    { id: 2, name: 'Calvin', weight: 5, birthday: '2018-05-12', consumed: 0, color: 'bg-yellow-100', icon: '🦁', profilePic: null },
+                    { id: 1, name: 'Mallowie', weight: 4, birthday: defaultDate, consumed: 0, color: 'bg-blue-100', icon: '🐱', profilePic: null },
                 ];
             });
             const [activeCatIndex, setActiveCatIndex] = useState(0);
@@ -307,8 +325,8 @@
             const [syncStatus, setSyncStatus] = useState(null);
 
             const activeCat = cats[activeCatIndex];
-            const dailyTarget = Math.round(activeCat.weight * 55);
-            const progress = Math.min((activeCat.consumed / dailyTarget) * 100, 100);
+            const dailyTarget = Math.round((activeCat?.weight || 4) * 55);
+            const progress = Math.min(((activeCat?.consumed || 0) / dailyTarget) * 100, 100);
 
             useEffect(() => {
                 localStorage.setItem('meow_h2o_cats_v3', JSON.stringify(cats));
@@ -316,42 +334,47 @@
 
             const scriptUrl = "https://script.google.com/macros/s/AKfycbwI5BBDVWyeBKmrc-oYTDuZ3szkNG0pQROOpJ4gpiB85wnZvFSTupUzg3bbIMoTBY5f/exec";
 
-            const updateActiveCat = (newData) => {
-                const newCats = [...cats];
-                newCats[activeCatIndex] = { ...newCats[activeCatIndex], ...newData };
-                setCats(newCats);
-            };
-
             const calculateAge = (birthday) => {
-                if (!birthday) return "未知年齡";
+                if (!birthday) return "未知";
                 const birthDate = new Date(birthday);
                 const today = new Date();
+                if (isNaN(birthDate.getTime())) return "日期錯誤";
                 let years = today.getFullYear() - birthDate.getFullYear();
                 let months = today.getMonth() - birthDate.getMonth();
                 if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
                     years--;
                     months += 12;
                 }
-                if (years === 0) return `${months} 個月`;
-                return `${years} 歲 ${months} 個月`;
+                return years < 0 ? "尚未出生" : (years === 0 ? `${months} 個月` : `${years} 歲 ${months} 月`);
             };
 
             const handleAddWater = (amt) => {
                 const amount = parseInt(amt);
                 if (isNaN(amount)) return;
-                updateActiveCat({ consumed: activeCat.consumed + amount });
+                const newCats = [...cats];
+                newCats[activeCatIndex].consumed += amount;
+                setCats(newCats);
                 setActiveView('home');
             };
 
-            const handleImageUpload = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        updateActiveCat({ profilePic: reader.result });
-                    };
-                    reader.readAsDataURL(file);
-                }
+            const handleAddNewCat = (newCatData) => {
+                const newCat = {
+                    id: Date.now(),
+                    ...newCatData,
+                    consumed: 0,
+                    color: ['bg-blue-100', 'bg-yellow-100', 'bg-green-100', 'bg-purple-100', 'bg-pink-100'][cats.length % 5],
+                    icon: '🐱'
+                };
+                setCats([...cats, newCat]);
+                setActiveCatIndex(cats.length);
+                setActiveView('home');
+            };
+
+            const handleUpdateProfile = (updatedData) => {
+                const newCats = [...cats];
+                newCats[activeCatIndex] = { ...newCats[activeCatIndex], ...updatedData };
+                setCats(newCats);
+                setActiveView('home');
             };
 
             const syncToGoogleSheets = async () => {
@@ -365,20 +388,13 @@
                         weight: activeCat.weight,
                         birthday: activeCat.birthday
                     };
-                    await fetch(scriptUrl, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify(data)
-                    });
+                    await fetch(scriptUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(data) });
                     setSyncStatus('success');
                     setTimeout(() => setSyncStatus(null), 3000);
                 } catch (e) {
                     setSyncStatus('error');
                     setTimeout(() => setSyncStatus(null), 3000);
-                } finally {
-                    setIsSyncing(false);
-                }
+                } finally { setIsSyncing(false); }
             };
 
             return (
@@ -387,47 +403,23 @@
                         <div className="flex-1">
                             {activeView === 'home' && (
                                 <HomeView 
-                                    activeCat={activeCat} 
-                                    cats={cats} 
-                                    onSwitchCat={setActiveCatIndex} 
-                                    onNavigate={setActiveView} 
-                                    calculateAge={calculateAge} 
-                                    dailyTarget={dailyTarget} 
-                                    progress={progress} 
+                                    activeCat={activeCat} cats={cats} onSwitchCat={setActiveCatIndex} 
+                                    onNavigate={setActiveView} calculateAge={calculateAge} dailyTarget={dailyTarget} progress={progress} 
                                 />
                             )}
-                            {activeView === 'add' && (
-                                <AddView onBack={() => setActiveView('home')} onAdd={handleAddWater} />
-                            )}
-                            {activeView === 'wetfood' && (
-                                <WetFoodView onBack={() => setActiveView('home')} onAdd={handleAddWater} />
-                            )}
-                            {activeView === 'stats' && (
-                                <StatsView 
-                                    activeCat={activeCat} 
-                                    onBack={() => setActiveView('home')} 
-                                    isSyncing={isSyncing} 
-                                    syncStatus={syncStatus} 
-                                    onSync={syncToGoogleSheets} 
-                                />
-                            )}
-                            {activeView === 'profile' && (
-                                <ProfileView 
-                                    cat={activeCat} 
-                                    onBack={() => setActiveView('home')} 
-                                    onSave={(data) => { updateActiveCat(data); setActiveView('home'); }} 
-                                    onImageUpload={handleImageUpload} 
-                                />
-                            )}
+                            {activeView === 'add' && <AddView onBack={() => setActiveView('home')} onAdd={handleAddWater} />}
+                            {activeView === 'wetfood' && <WetFoodView onBack={() => setActiveView('home')} onAdd={handleAddWater} />}
+                            {activeView === 'stats' && <StatsView onBack={() => setActiveView('home')} isSyncing={isSyncing} syncStatus={syncStatus} onSync={syncToGoogleSheets} />}
+                            {activeView === 'profile' && <ProfileEditor title="編輯資料" initialData={activeCat} onBack={() => setActiveView('home')} onSave={handleUpdateProfile} />}
+                            {activeView === 'add_cat' && <ProfileEditor title="新增貓咪" initialData={{}} onBack={() => setActiveView('home')} onSave={handleAddNewCat} isNew={true} />}
                         </div>
 
-                        {/* 底部導覽 */}
                         {activeView !== 'add' && activeView !== 'wetfood' && (
                             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[40px] py-4 px-10 flex justify-between items-center shadow-2xl border border-white/50 z-50">
                                 <button onClick={() => setActiveView('home')} className={`transition-all duration-300 ${activeView === 'home' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}><IconHome size={28} /></button>
                                 <button onClick={() => setActiveView('profile')} className={`transition-all duration-300 ${activeView === 'profile' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}>
                                     <div className={`w-9 h-9 rounded-full border-2 overflow-hidden shadow-sm transition-colors ${activeView === 'profile' ? 'border-blue-400' : 'border-gray-300'}`}>
-                                        {activeCat.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-sm bg-white flex items-center justify-center h-full font-bold">{activeCat.icon}</div>}
+                                        {activeCat?.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-sm bg-white flex items-center justify-center h-full font-bold">{activeCat?.icon || '🐱'}</div>}
                                     </div>
                                 </button>
                                 <button onClick={() => setActiveView('stats')} className={`transition-all duration-300 ${activeView === 'stats' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}><IconSync size={28} /></button>
