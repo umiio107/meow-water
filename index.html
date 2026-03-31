@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>喵補水 MeowH2O Pro</title>
+    <!-- 使用 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
     <style>
@@ -27,13 +30,18 @@
             to { opacity: 1; transform: translateY(0); }
         }
         input:focus { outline: none; }
+        /* 隱藏日期選擇器的原生樣式，配合 UI 風格 */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            filter: invert(0.5);
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect } = React;
 
         // --- SVG 圖示組件 ---
         const IconDroplet = ({ size = 24, color = "currentColor" }) => (
@@ -57,15 +65,18 @@
         const IconSync = ({ size = 20 }) => (
             <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><polyline points="3 21 3 16 8 16" /><polyline points="21 3 21 8 16 8" /></svg>
         );
+        const IconCake = ({ size = 20, color = "currentColor" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" /><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" /><path d="M2 21h20" /><path d="M7 8v3" /><path d="M12 8v3" /><path d="M17 8v3" /><path d="M7 4h.01" /><path d="M12 4h.01" /><path d="M17 4h.01" /></svg>
+        );
 
-        // --- 主應用 ---
+        // --- 核心邏輯 ---
         const App = () => {
             const [activeView, setActiveView] = useState('home'); 
             const [cats, setCats] = useState(() => {
-                const saved = localStorage.getItem('meow_h2o_cats');
+                const saved = localStorage.getItem('meow_h2o_cats_v3');
                 return saved ? JSON.parse(saved) : [
-                    { id: 1, name: 'Mallowie', weight: 4, consumed: 120, color: 'bg-blue-100', icon: '🐱', profilePic: null },
-                    { id: 2, name: 'Calvin', weight: 5, consumed: 80, color: 'bg-yellow-100', icon: '🦁', profilePic: null },
+                    { id: 1, name: 'Mallowie', weight: 4, birthday: '2020-01-01', consumed: 0, color: 'bg-blue-100', icon: '🐱', profilePic: null },
+                    { id: 2, name: 'Calvin', weight: 5, birthday: '2018-05-12', consumed: 0, color: 'bg-yellow-100', icon: '🦁', profilePic: null },
                 ];
             });
             const [activeCatIndex, setActiveCatIndex] = useState(0);
@@ -80,12 +91,27 @@
 
             const activeCat = cats[activeCatIndex];
             
-            // 計算每日目標: 體重 * 55 (50~60的中間值)
+            // 計算每日目標
             const dailyTarget = Math.round(activeCat.weight * 55);
             const progress = Math.min((activeCat.consumed / dailyTarget) * 100, 100);
 
+            // 計算年齡函數
+            const calculateAge = (birthday) => {
+                if (!birthday) return "未知年齡";
+                const birthDate = new Date(birthday);
+                const today = new Date();
+                let years = today.getFullYear() - birthDate.getFullYear();
+                let months = today.getMonth() - birthDate.getMonth();
+                if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+                    years--;
+                    months += 12;
+                }
+                if (years === 0) return `${months} 個月`;
+                return `${years} 歲 ${months} 個月`;
+            };
+
             useEffect(() => {
-                localStorage.setItem('meow_h2o_cats', JSON.stringify(cats));
+                localStorage.setItem('meow_h2o_cats_v3', JSON.stringify(cats));
             }, [cats]);
 
             const scriptUrl = "https://script.google.com/macros/s/AKfycbwI5BBDVWyeBKmrc-oYTDuZ3szkNG0pQROOpJ4gpiB85wnZvFSTupUzg3bbIMoTBY5f/exec";
@@ -110,7 +136,6 @@
                 if (isNaN(weight) || isNaN(percent)) return;
                 const calculatedWater = Math.round(weight * percent);
                 handleAddWater(calculatedWater);
-                // 重置
                 setWetFoodBrand('');
                 setWetFoodWeight('');
                 setWetFoodPercent('80');
@@ -135,7 +160,8 @@
                         catName: activeCat.name,
                         amount: activeCat.consumed,
                         target: dailyTarget,
-                        weight: activeCat.weight
+                        weight: activeCat.weight,
+                        birthday: activeCat.birthday
                     };
                     await fetch(scriptUrl, {
                         method: 'POST',
@@ -147,18 +173,20 @@
                     setTimeout(() => setSyncStatus(null), 3000);
                 } catch (e) {
                     setSyncStatus('error');
+                    setTimeout(() => setSyncStatus(null), 3000);
                 } finally {
                     setIsSyncing(false);
                 }
             };
 
             // --- 視圖組件 ---
+
             const HomeView = () => (
                 <div className="flex flex-col gap-6 animate-in">
                     <div className="flex justify-between items-center px-2">
                         <div>
-                            <p className="text-gray-400 text-sm">Welcome back!</p>
-                            <h1 className="text-2xl font-bold text-gray-800">貓咪飲水監控</h1>
+                            <p className="text-gray-400 text-sm font-bold">Hello, {activeCat.name}!</p>
+                            <h1 className="text-2xl font-black text-gray-800">貓咪飲水監控</h1>
                         </div>
                         <div className="flex gap-2">
                             {cats.map((cat, idx) => (
@@ -169,38 +197,37 @@
                         </div>
                     </div>
 
-                    {/* 進度卡片 */}
-                    <div className={`${activeCat.color} rounded-[40px] p-8 relative overflow-hidden soft-shadow h-72 flex flex-col justify-between`}>
+                    <div className={`${activeCat.color} rounded-[45px] p-8 relative overflow-hidden soft-shadow h-80 flex flex-col justify-between`}>
                         <div className="z-10">
                             <div className="flex items-center gap-2 mb-2">
-                                <span className="p-1.5 bg-blue-500 rounded-full text-white"><IconDroplet size={14} /></span>
+                                <span className="p-1.5 bg-blue-500 rounded-full text-white shadow-md"><IconDroplet size={14} /></span>
                                 <span className="font-bold text-gray-700">{activeCat.name} 今日進度</span>
                             </div>
                             <h2 className="text-5xl font-black text-gray-800">{activeCat.consumed} <span className="text-xl font-bold text-gray-500">ml</span></h2>
-                            <div className="mt-4 flex flex-col gap-1">
-                                <p className="text-gray-500 text-sm font-bold">體重: {activeCat.weight} kg</p>
-                                <p className="text-gray-500 text-sm font-bold">每日需求: {dailyTarget} ml</p>
+                            <div className="mt-4 flex flex-col gap-1 bg-white/30 backdrop-blur-sm p-3 rounded-2xl w-fit">
+                                <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">體重:</span> {activeCat.weight} kg</p>
+                                <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">年齡:</span> {calculateAge(activeCat.birthday)}</p>
+                                <p className="text-gray-700 text-xs font-bold flex items-center gap-1"><span className="opacity-60">每日需求:</span> {dailyTarget} ml</p>
                             </div>
                         </div>
                         <div className="absolute bottom-0 left-0 w-full bg-white/40 transition-all duration-1000 ease-out" style={{ height: `${progress}%` }}>
                             <div className="w-full h-2 bg-blue-400/20 blur-sm"></div>
                         </div>
-                        <button onClick={() => setActiveView('add')} className="absolute bottom-6 right-6 w-16 h-16 bg-white rounded-3xl shadow-xl flex items-center justify-center text-blue-500 hover:scale-105 active:scale-95 transition-transform z-20">
+                        <button onClick={() => setActiveView('add')} className="absolute bottom-8 right-8 w-16 h-16 bg-white rounded-[24px] shadow-xl flex items-center justify-center text-blue-500 hover:scale-105 active:scale-95 transition-transform z-20">
                             <IconPlus size={36} />
                         </button>
                     </div>
 
-                    {/* 功能區 */}
                     <div className="grid grid-cols-2 gap-4">
                         <div onClick={() => setActiveView('wetfood')} className="bg-orange-50 rounded-[35px] p-6 soft-shadow relative h-44 cursor-pointer hover:bg-orange-100 transition-colors">
-                            <div className="p-3 bg-white w-fit rounded-2xl mb-3"><IconUtensils color="#f97316" /></div>
+                            <div className="p-3 bg-white w-fit rounded-2xl mb-3 shadow-sm"><IconUtensils color="#f97316" /></div>
                             <h3 className="font-extrabold text-gray-700">濕食計算</h3>
-                            <p className="text-xs text-gray-400 mt-1">換算罐頭含水量</p>
+                            <p className="text-[10px] text-gray-400 mt-1">換算罐頭含水量</p>
                         </div>
                         <div onClick={() => setActiveView('stats')} className="bg-green-50 rounded-[35px] p-6 soft-shadow relative h-44 cursor-pointer hover:bg-green-100 transition-colors">
-                            <div className="p-3 bg-white w-fit rounded-2xl mb-3"><IconSync color="#22c55e" /></div>
+                            <div className="p-3 bg-white w-fit rounded-2xl mb-3 shadow-sm"><IconSync color="#22c55e" /></div>
                             <h3 className="font-extrabold text-gray-700">數據備份</h3>
-                            <p className="text-xs text-gray-400 mt-1">上傳至雲端試算表</p>
+                            <p className="text-[10px] text-gray-400 mt-1">上傳至雲端試算表</p>
                         </div>
                     </div>
                 </div>
@@ -216,7 +243,7 @@
                     
                     <div className="flex-1 flex flex-col gap-10 items-center justify-center">
                         <div className="w-full">
-                            <label className="block text-sm font-bold text-gray-400 mb-4 text-center">自訂毫升數 (ml)</label>
+                            <label className="block text-sm font-bold text-gray-400 mb-4 text-center">自定義毫升數 (ml)</label>
                             <input 
                                 type="number" 
                                 placeholder="輸入數字..." 
@@ -233,12 +260,7 @@
                         </div>
                     </div>
 
-                    <button 
-                        onClick={() => handleAddWater(customAmount)}
-                        className="mt-12 w-full py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all"
-                    >
-                        確認紀錄
-                    </button>
+                    <button onClick={() => handleAddWater(customAmount)} className="mt-12 w-full py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all">確認紀錄</button>
                 </div>
             );
 
@@ -246,16 +268,15 @@
                 <div className="flex flex-col h-full animate-in">
                     <div className="flex items-center justify-between mb-8">
                         <button onClick={() => setActiveView('home')} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
-                        <h2 className="text-xl font-black text-gray-700">主食罐換算</h2>
+                        <h2 className="text-xl font-black text-gray-700">濕食水分換算</h2>
                         <div className="w-12"></div>
                     </div>
 
                     <div className="flex flex-col gap-6">
                         <div className="bg-orange-50 p-6 rounded-[35px] border border-orange-100">
-                            <p className="text-xs text-orange-400 font-bold mb-2">計算公式</p>
-                            <p className="text-sm text-orange-700 leading-relaxed font-bold">飲水量 = 罐頭克數 × 水分%</p>
+                            <p className="text-xs text-orange-400 font-bold mb-1">計算公式</p>
+                            <p className="text-sm text-orange-700 leading-relaxed font-bold">獲得水分 (ml) = 罐頭淨重 (g) × 水分%</p>
                         </div>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">罐頭品牌</label>
@@ -264,7 +285,7 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">淨重 (g)</label>
-                                    <input type="number" value={wetFoodWeight} onChange={e => setWetFoodWeight(e.target.value)} placeholder="例如：80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
+                                    <input type="number" value={wetFoodWeight} onChange={e => setWetFoodWeight(e.target.value)} placeholder="80" className="w-full bg-white p-5 rounded-2xl soft-inset font-bold" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">水分百分比 (%)</label>
@@ -272,18 +293,13 @@
                                 </div>
                             </div>
                         </div>
-
                         <div className="bg-white p-8 rounded-[35px] soft-shadow text-center mt-4">
-                            <p className="text-sm font-bold text-gray-400">換算獲得水分</p>
-                            <h4 className="text-4xl font-black text-orange-500 mt-2">
-                                {wetFoodWeight && wetFoodPercent ? Math.round(parseFloat(wetFoodWeight) * (parseFloat(wetFoodPercent)/100)) : 0} <span className="text-lg font-bold">ml</span>
-                            </h4>
+                            <p className="text-xs font-bold text-gray-400 mb-1">本次預計增加</p>
+                            <h4 className="text-4xl font-black text-orange-500">{wetFoodWeight && wetFoodPercent ? Math.round(parseFloat(wetFoodWeight) * (parseFloat(wetFoodPercent)/100)) : 0} <span className="text-lg font-bold text-gray-400">ml</span></h4>
                         </div>
                     </div>
 
-                    <button onClick={handleWetFoodCalc} className="mt-auto py-6 bg-orange-500 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all">
-                        加入今日飲水量
-                    </button>
+                    <button onClick={handleWetFoodCalc} className="mt-12 py-6 bg-orange-500 text-white rounded-[30px] font-black text-lg shadow-2xl active:scale-95 transition-all">加入今天飲水量</button>
                 </div>
             );
 
@@ -297,34 +313,45 @@
 
                     <div className="flex flex-col items-center gap-8">
                         <div className="relative">
-                            <div className="w-40 h-40 rounded-[45px] bg-white soft-shadow overflow-hidden flex items-center justify-center border-4 border-white">
-                                {activeCat.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-6xl">{activeCat.icon}</div>}
+                            <div className="w-40 h-40 rounded-[45px] bg-white soft-shadow overflow-hidden flex items-center justify-center border-8 border-white">
+                                {activeCat.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-7xl">{activeCat.icon}</div>}
                             </div>
-                            <label className="absolute -bottom-2 -right-2 p-4 bg-blue-500 text-white rounded-2xl shadow-xl cursor-pointer hover:scale-110 transition-transform">
+                            <label className="absolute -bottom-2 -right-2 p-4 bg-blue-500 text-white rounded-[20px] shadow-xl cursor-pointer hover:scale-110 transition-transform">
                                 <IconCamera size={20} />
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                             </label>
                         </div>
 
-                        <div className="w-full space-y-6">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">貓咪名字</label>
-                                <input type="text" value={activeCat.name} onChange={e => updateActiveCat({ name: e.target.value })} className="w-full bg-white p-5 rounded-2xl soft-inset font-bold text-xl" />
+                        <div className="w-full space-y-4">
+                            <div className="bg-white p-5 rounded-[30px] soft-shadow">
+                                <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">貓咪姓名</label>
+                                <input type="text" value={activeCat.name} onChange={e => updateActiveCat({ name: e.target.value })} className="w-full bg-transparent border-b border-gray-100 py-1 text-xl font-black text-gray-800" />
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-400 mb-2 ml-4">貓咪體重 (kg)</label>
+
+                            <div className="bg-white p-5 rounded-[30px] soft-shadow">
+                                <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">出生日期 (西元)</label>
+                                <div className="flex items-center gap-3">
+                                    <IconCake size={18} color="#f472b6" />
+                                    <input 
+                                        type="date" 
+                                        value={activeCat.birthday} 
+                                        onChange={e => updateActiveCat({ birthday: e.target.value })} 
+                                        className="flex-1 bg-transparent border-b border-gray-100 py-1 text-xl font-black text-pink-500" 
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-white p-5 rounded-[30px] soft-shadow">
+                                <label className="block text-xs font-bold text-gray-400 mb-1 ml-1">體重 (kg)</label>
                                 <div className="flex items-center gap-4">
-                                    <input type="number" step="0.1" value={activeCat.weight} onChange={e => updateActiveCat({ weight: parseFloat(e.target.value) || 0 })} className="flex-1 bg-white p-5 rounded-2xl soft-inset font-bold text-xl text-blue-500" />
+                                    <input type="number" step="0.1" value={activeCat.weight} onChange={e => updateActiveCat({ weight: parseFloat(e.target.value) || 0 })} className="flex-1 bg-transparent border-b border-gray-100 py-1 text-xl font-black text-blue-500" />
                                     <span className="font-bold text-gray-400">公斤</span>
                                 </div>
-                                <p className="text-[10px] text-gray-400 mt-2 ml-4 italic">目標飲水量將依此自動計算 ($50\sim60 \text{ ml/kg}$)</p>
                             </div>
                         </div>
                     </div>
 
-                    <button onClick={() => setActiveView('home')} className="mt-auto py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-xl">
-                        保存設定
-                    </button>
+                    <button onClick={() => setActiveView('home')} className="mt-12 py-6 bg-gray-800 text-white rounded-[30px] font-black text-lg shadow-xl active:scale-95 transition-all">保存設定</button>
                 </div>
             );
 
@@ -332,29 +359,15 @@
                 <div className="flex flex-col h-full animate-in">
                     <div className="flex items-center justify-between mb-8">
                         <button onClick={() => setActiveView('home')} className="p-3 bg-white rounded-2xl soft-shadow text-gray-400"><IconChevron className="rotate-180" /></button>
-                        <h2 className="text-xl font-black text-gray-700">雲端備份</h2>
+                        <h2 className="text-xl font-black text-gray-700">數據管理</h2>
                         <div className="w-12"></div>
                     </div>
-
                     <div className="bg-white p-10 rounded-[45px] soft-shadow flex flex-col items-center text-center">
-                        <div className="w-24 h-24 bg-blue-50 rounded-[35px] flex items-center justify-center text-blue-500 mb-6 soft-inset">
-                            <IconSync size={40} />
-                        </div>
-                        <h3 className="text-2xl font-black text-gray-800">同步至 Google</h3>
-                        <p className="text-sm text-gray-400 mt-3 leading-relaxed font-bold">
-                            將 {activeCat.name} 今日的數據匯入到您的雲端試算表進行長期追蹤。
-                        </p>
-                        
-                        <button 
-                            onClick={syncToGoogleSheets}
-                            disabled={isSyncing}
-                            className={`mt-10 w-full py-5 rounded-[25px] font-black transition-all flex items-center justify-center gap-3 ${
-                                syncStatus === 'success' ? 'bg-green-500 text-white' : 
-                                isSyncing ? 'bg-gray-100 text-gray-400' : 'bg-blue-500 text-white shadow-xl active:scale-95'
-                            }`}
-                        >
-                            {isSyncing ? <IconLoader size={24} /> : <IconSync size={20} />}
-                            {syncStatus === 'success' ? '同步成功' : isSyncing ? '同步中...' : '立即同步'}
+                        <div className="w-24 h-24 bg-blue-50 rounded-[35px] flex items-center justify-center text-blue-500 mb-8 soft-inset shadow-sm"><IconSync size={40} /></div>
+                        <h3 className="text-2xl font-black text-gray-800">雲端備份</h3>
+                        <p className="text-sm text-gray-400 mt-4 font-bold px-4">同步數據至您的 Google 試算表。</p>
+                        <button onClick={syncToGoogleSheets} disabled={isSyncing} className={`mt-12 w-full py-6 rounded-[28px] font-black transition-all flex items-center justify-center gap-3 ${syncStatus === 'success' ? 'bg-green-500 text-white shadow-lg' : isSyncing ? 'bg-gray-100 text-gray-400' : 'bg-blue-500 text-white shadow-xl active:scale-95'}`}>
+                            {isSyncing ? "同步中..." : "立即同步至雲端"}
                         </button>
                     </div>
                 </div>
@@ -370,21 +383,15 @@
                             {activeView === 'stats' && <StatsView />}
                             {activeView === 'profile' && <ProfileView />}
                         </div>
-
-                        {/* 底部選單 */}
                         {activeView !== 'add' && activeView !== 'wetfood' && (
                             <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-xl rounded-[40px] py-4 px-10 flex justify-between items-center shadow-2xl border border-white/50 z-50">
-                                <button onClick={() => setActiveView('home')} className={`transition-transform duration-300 ${activeView === 'home' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}>
-                                    <IconHome size={28} />
-                                </button>
-                                <button onClick={() => setActiveView('profile')} className={`transition-transform duration-300 ${activeView === 'profile' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}>
-                                    <div className={`w-8 h-8 rounded-full border-2 overflow-hidden ${activeView === 'profile' ? 'border-blue-400' : 'border-gray-300'}`}>
-                                        {activeCat.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-sm bg-white flex items-center justify-center h-full">{activeCat.icon}</div>}
+                                <button onClick={() => setActiveView('home')} className={`transition-all duration-300 ${activeView === 'home' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}><IconHome size={28} /></button>
+                                <button onClick={() => setActiveView('profile')} className={`transition-all duration-300 ${activeView === 'profile' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}>
+                                    <div className={`w-9 h-9 rounded-full border-2 overflow-hidden shadow-sm transition-colors ${activeView === 'profile' ? 'border-blue-400' : 'border-gray-300'}`}>
+                                        {activeCat.profilePic ? <img src={activeCat.profilePic} className="w-full h-full object-cover" /> : <div className="text-sm bg-white flex items-center justify-center h-full font-bold">{activeCat.icon}</div>}
                                     </div>
                                 </button>
-                                <button onClick={() => setActiveView('stats')} className={`transition-transform duration-300 ${activeView === 'stats' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}>
-                                    <IconSync size={28} />
-                                </button>
+                                <button onClick={() => setActiveView('stats')} className={`transition-all duration-300 ${activeView === 'stats' ? 'text-blue-500 scale-125' : 'text-gray-300'}`}><IconSync size={28} /></button>
                             </div>
                         )}
                     </div>
